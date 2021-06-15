@@ -245,7 +245,7 @@ class BuildTag(db.Model):
     """Extra tag associated with built index image."""
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, nullable=False, unique=True)
+    name = db.Column(db.String, nullable=False, unique=False)
     request_id = db.Column(db.Integer, db.ForeignKey('request.id'), index=True, nullable=False)
     request = db.relationship('Request', foreign_keys=[request_id], back_populates='build_tags')
 
@@ -369,6 +369,15 @@ class Request(db.Model):
         db.session.add(request_state)
         db.session.flush()
         self.request_state_id = request_state.id
+
+    def add_build_tag(self, name):
+        """
+        Add a BuildTag associated with the current request.
+
+        :param str name: tag name
+        """
+        bt = BuildTag(name=name, request_id=self.id)
+        db.session.add(bt)
 
     def add_architecture(self, arch_name):
         """
@@ -751,6 +760,7 @@ class RequestIndexImageMixin:
             'overwrite_from_index',
             'overwrite_from_index_token',
             'distribution_scope',
+            'build_tags',
         } | set(additional_optional_params or [])
 
         validate_request_params(
@@ -854,6 +864,7 @@ class RequestIndexImageMixin:
             'organization': None,
             'removed_operators': [],
             'distribution_scope': self.distribution_scope,
+            'build_tags': [t.name for t in self.build_tags],
         }
 
     def get_index_image_mutable_keys(self):
@@ -898,7 +909,7 @@ class RequestAdd(Request, RequestIndexImageMixin):
         """
         request_kwargs = deepcopy(kwargs)
 
-        for key in ('bundles', 'deprecation_list'):
+        for key in ('bundles', 'deprecation_list', 'build_tags'):
             value = request_kwargs.get(key, [])
             if not isinstance(value, list) or any(
                 not item or not isinstance(item, str) for item in value
@@ -934,6 +945,7 @@ class RequestAdd(Request, RequestIndexImageMixin):
                 'bundles',
                 'distribution_scope',
                 'deprecation_list',
+                'build_tags',
             ],
             batch=batch,
         )
@@ -942,8 +954,17 @@ class RequestAdd(Request, RequestIndexImageMixin):
             request_kwargs[key] = [
                 Image.get_or_create(pull_specification=item) for item in request_kwargs.get(key, [])
             ]
-
+        build_tags = []
+        if 'build_tags' in request_kwargs:
+            build_tags = request_kwargs.pop('build_tags')
         request = cls(**request_kwargs)
+        db.session.add(request)
+        db.session.flush()
+
+        for bt in build_tags:
+            request.add_build_tag(bt)
+        db.session.flush()
+
         request.add_state('in_progress', 'The request was initiated')
         return request
 
@@ -1009,6 +1030,14 @@ class RequestRm(Request, RequestIndexImageMixin):
         """
         request_kwargs = deepcopy(kwargs)
 
+        for key in ('build_tags',):
+            value = request_kwargs.get(key, [])
+            if not isinstance(value, list) or any(
+                not item or not isinstance(item, str) for item in value
+            ):
+                raise ValidationError(
+                    f'"{key}" should be either an empty array or an array of non-empty strings'
+                )
         operators = request_kwargs.get('operators', [])
         if (
             not isinstance(operators, list)
@@ -1025,6 +1054,17 @@ class RequestRm(Request, RequestIndexImageMixin):
 
         request = cls(**request_kwargs)
         request.add_state('in_progress', 'The request was initiated')
+        db.session.add(request)
+        db.session.flush()
+
+        build_tags = []
+        if 'build_tags' in request_kwargs:
+            build_tags = request_kwargs.pop('build_tags')
+
+        for bt in build_tags:
+            request.add_build_tag(bt)
+
+        db.session.flush()
         return request
 
     def to_json(self, verbose=True):
@@ -1076,6 +1116,7 @@ class RequestRegenerateBundle(Request):
     __mapper_args__ = {
         'polymorphic_identity': RequestTypeMapping.__members__['regenerate_bundle'].value
     }
+    build_tags = None
 
     @classmethod
     def from_json(cls, kwargs, batch=None):
@@ -1281,6 +1322,16 @@ class RequestMergeIndexImage(Request):
         request_kwargs['batch'] = batch
 
         request = cls(**request_kwargs)
+        db.session.add(request)
+        db.session.flush()
+
+        build_tags = []
+        if 'build_tags' in request_kwargs:
+            build_tags = request_kwargs.pop('build_tags')
+
+        for bt in build_tags:
+            request.add_build_tag(bt)
+
         request.add_state('in_progress', 'The request was initiated')
         return request
 
@@ -1308,6 +1359,7 @@ class RequestMergeIndexImage(Request):
             self.target_index_resolved, 'pull_specification', None
         )
         rv['distribution_scope'] = self.distribution_scope
+        rv['build_tags'] = [t.name for t in self.build_tags]
 
         return rv
 

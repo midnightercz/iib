@@ -1827,6 +1827,7 @@ def test_create_empty_index_success(
         'batch_annotations': None,
         'binary_image': binary_image,
         'binary_image_resolved': None,
+        'build_tags': [],
         'from_index': from_index,
         'from_index_resolved': None,
         'distribution_scope': None,

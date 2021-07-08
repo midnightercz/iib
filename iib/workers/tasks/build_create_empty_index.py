@@ -56,7 +56,12 @@ def _get_present_operators(from_index, base_dir):
 @app.task
 @request_logger
 def handle_create_empty_index_request(
-    from_index, request_id, binary_image=None, labels=None, binary_image_config=None
+    from_index,
+    request_id,
+    binary_image=None,
+    labels=None,
+    binary_image_config=None,
+    build_tags=None,
 ):
     """Coordinate the the work needed to create the index image with labels.
 
@@ -68,6 +73,7 @@ def handle_create_empty_index_request(
     :param dict labels: the dict of labels required to be added to a new index image
     :param dict binary_image_config: the dict of config required to identify the appropriate
         ``binary_image`` to use.
+    :param list build_tags: List of tags which will be applied to intermediate index images.
     """
     _cleanup()
 
@@ -111,7 +117,7 @@ def handle_create_empty_index_request(
             _push_image(request_id, arch)
 
     set_request_state(request_id, 'in_progress', 'Creating the manifest list')
-    output_pull_spec = _create_and_push_manifest_list(request_id, arches)
+    output_pull_spec = _create_and_push_manifest_list(request_id, arches, build_tags)
 
     _update_index_image_pull_spec(
         output_pull_spec=output_pull_spec,

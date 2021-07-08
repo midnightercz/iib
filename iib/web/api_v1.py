@@ -738,6 +738,7 @@ def create_empty_index():
         payload.get('binary_image'),
         payload.get('labels'),
         flask.current_app.config['IIB_BINARY_IMAGE_CONFIG'],
+        payload.get('build_tags', []),
     ]
     safe_args = _get_safe_args(args, payload)
     error_callback = failed_request_callback.s(request.id)

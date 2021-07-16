@@ -1005,6 +1005,8 @@ def handle_add_request(
 
     set_request_state(request_id, 'in_progress', 'Creating the manifest list')
     output_pull_specs = _create_and_push_manifest_list(request_id, arches, build_tags)
+
+    # use first element of output_pull_specs as it's orignal index image pull spec
     if legacy_support_packages:
         export_legacy_packages(
             legacy_support_packages, request_id, output_pull_specs[0], cnr_token, organization

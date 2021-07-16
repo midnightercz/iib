@@ -864,7 +864,7 @@ class RequestIndexImageMixin:
             'organization': None,
             'removed_operators': [],
             'distribution_scope': self.distribution_scope,
-            'build_tags': [t.name for t in self.build_tags],
+            'build_tags': [tag.name for tag in self.build_tags],
         }
 
     def get_index_image_mutable_keys(self):
@@ -945,7 +945,6 @@ class RequestAdd(Request, RequestIndexImageMixin):
                 'bundles',
                 'distribution_scope',
                 'deprecation_list',
-                'build_tags',
             ],
             batch=batch,
         )
